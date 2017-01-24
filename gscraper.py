@@ -5,7 +5,7 @@ from time import sleep
 
 def start_google_session(search_term):
     sess = dryscrape.Session(base_url = 'http://www.google.com')
-    sess.set_header("User-Agent", "Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:50.0) Gecko/20100101 Firefox/50.0")
+    sess.set_header("user-agent", "Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36")
     sess.set_attribute('auto_load_images', True)
     sess.visit('/')
     q = sess.at_xpath('//*[@name="q"]')
@@ -32,22 +32,49 @@ def get_results(session):
 
 def simulate_human_interaction(session):
     links = session.xpath("//div[@id='res']//a[@href]")
-    search_field = session.at_xpath('//*[@name="q"]')
-    for i in range(1, random.randrange(5, 10), 1):
+    for i in range(1, random.randrange(2, 6), 1):
         link = random.choice(links)
         print("Simulating hover to random search result") 
         link.hover()
         pause = random.randrange(1, 5)
         print("Sleeping for %s.." % pause)
         sleep(pause)
+    results_to_visit = random.randrange(1, 5)
     
+    print("Randomly visiting %s results" % results_to_visit)
+    origin_url = session.url()
+    for i in range(0, results_to_visit, 1):
+        links = [i for i in session.xpath("//div[@id='res']//a[@href]") if i['href'].find('#') == -1 and i['href'].find('webcache') == -1 and i['href'].find('http') != -1]
+        result_to_visit = random.choice(links)
+        print("Click on: %s" % result_to_visit['href'])
+        result_to_visit.click()
+        pause = random.randrange(3, 10)
+        print("Simulating visualization for %s secs..." % pause)
+        sleep(pause)
+        try:
+            session.render('visit_%s.png' % i)
+        except InvalidResponseError as E:
+            print(E)
+        print("Returning to search results...")
+        session.visit(origin_url)
+        sleep(1)
+        session.render("return_to.png")
+
+    session.visit(origin_url)
+    session.render('return_to.png')
+    sleep(1)
+    search_field = session.at_xpath('//*[@name="q"]')
     print("Changing Search Term")
     current_term = search_field.value()
     print("Current Search Term: %s" % current_term)
     search_field.set('Lorem Ipsum')
+    print("Changing page")
+    search_field.form().submit()
     sleep(random.randrange(2,5))
     session.render('changed_term.png')
+    search_field = session.at_xpath('//*[@name="q"]') 
     search_field.set(current_term)
+    search_field.form().submit()
     return session
 
 def scrape(search_term, minpause=8, maxpause=16, start_on=0, append_to=None):
@@ -84,6 +111,6 @@ def scrape(search_term, minpause=8, maxpause=16, start_on=0, append_to=None):
             s.visit(next_page)
             s.render('visited_page.png')
         return results, s
-    except ValueError as E:
+    except IndexError as E:
         print(E)
         return results, s
